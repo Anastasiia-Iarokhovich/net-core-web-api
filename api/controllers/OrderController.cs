@@ -1,14 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using api.data;
-using api.DTOs;
 using api.DTOs.Order;
+using api.interfaces;
 using api.mappers;
 using api.models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace api.controllers
 {
@@ -17,30 +12,61 @@ namespace api.controllers
     public class OrdersController : ControllerBase
     {
         private readonly ApplicationDBContext _context;
+        private readonly IOrderRepository _orderRepo;
 
-        public OrdersController(ApplicationDBContext context)
+        public OrdersController(ApplicationDBContext context, IOrderRepository orderRepo)
         {
             _context = context;
+            _orderRepo = orderRepo;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Order>>> GetAll()
+        public async Task<ActionResult<Order>> GetAll()
         {
-            var orders = await _context.Orders
-                .Include(x => x.Products)
-                .ToListAsync();
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            var orderDtos = orders.Select(s => s.ToOrderDto()).ToList();
+            var orders = await _orderRepo.GetAllAsync();
 
-            return Ok(orderDtos);
+            return Ok(orders);
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<Order>> GetById(int id)
+        public async Task<ActionResult<Order>> GetById([FromRoute] int id)
         {
-            var order = await _context.Orders
-                .Include(x => x.Products)
-                .FirstOrDefaultAsync(o => o.Id == id);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var order = await _orderRepo.GetByIdAsync(id);
+
+            if (order == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(order);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> Create([FromBody] CreateOrderRequestDto orderDto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var order = orderDto.ToOrder();
+            await _orderRepo.CreateAsync(order);
+
+            return Ok(order.ToOrderDto());
+        }
+
+        [HttpPut]
+        [Route("{id}")]
+        public async Task<IActionResult> Update([FromRoute] int id, [FromBody] UpdateOrderRequestDto orderDto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var order = await _orderRepo.UpdateAsync(id, orderDto);
 
             if (order == null)
             {
@@ -50,14 +76,21 @@ namespace api.controllers
             return Ok(order.ToOrderDto());
         }
 
-        [HttpPost]
-        public async Task<ActionResult> Create([FromBody] CreateOrderRequestDto orderDto)
+        [HttpDelete]
+        [Route("{id}")]
+        public async Task<IActionResult> Delete([FromRoute] int id) 
         {
-            var orderModel = orderDto.ToOrderFromCreateDto();
-            await _context.Orders.AddAsync(orderModel);
-            await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetById), new { id = orderModel.Id }, orderModel.ToOrderDto());
-        }
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
+            var order = await _orderRepo.DeleteAsync(id);
+
+            if (order == null)
+            {
+                return NotFound();
+            }
+
+            return NoContent();
+        }
     }
 }

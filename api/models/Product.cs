@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace api.models
 {
+    // [Table("Products")]
     public class Product
     {
         [Key]
@@ -19,7 +20,6 @@ namespace api.models
 
     
         // Навигационное свойство
-        [ValidateNever]
         public ICollection<Order> Orders { get; set; } = new List<Order>();
     }
 }
